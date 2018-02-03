@@ -131,9 +131,9 @@ def main():
     k = KEY()
     k.generate(ec_secret.decode('hex'))
     k.set_compressed(True)
-    print k.get_privkey().encode('hex')
-    print k.get_pubkey().encode('hex')
-    print k.get_secret().encode('hex')
+    print(k.get_privkey().encode('hex'))
+    print(k.get_pubkey().encode('hex'))
+    print(k.get_secret().encode('hex'))
 
 
 if __name__ == '__main__':

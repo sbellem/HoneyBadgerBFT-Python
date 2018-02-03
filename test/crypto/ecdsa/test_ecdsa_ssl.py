@@ -55,10 +55,10 @@ class TestKey(object):
         from honeybadgerbft.crypto.ecdsa.ecdsa_ssl import KEY
         mocked_ssl = mocker.patch.object(ecdsa_ssl, 'ssl')
         key = KEY()
-	k_before_del = key.k
+        k_before_del = key.k
         key.__del__()
         mocked_ssl.EC_KEY_free.assert_called_once_with(k_before_del)
-	assert key.k is None
+        assert key.k is None
 
     def test_del_without_ssl_obj(self, mocker):
         from honeybadgerbft.crypto.ecdsa import ecdsa_ssl

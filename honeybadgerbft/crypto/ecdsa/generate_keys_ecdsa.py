@@ -1,6 +1,6 @@
-from ecdsa_ssl import KEY
+from .ecdsa_ssl import KEY
 import argparse
-import cPickle
+import pickle
 
 
 def generate_key_list(players):
@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     players = int(args.players)
     keylist = generate_key_list(players)
-    print cPickle.dumps(keylist)
+    print(pickle.dumps(keylist))
 
 
 if __name__ == '__main__':

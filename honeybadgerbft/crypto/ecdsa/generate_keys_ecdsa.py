@@ -1,15 +1,11 @@
-from .ecdsa_ssl import KEY
 import argparse
 import pickle
 
+from coincurve import PrivateKey
+
 
 def generate_key_list(players):
-    keylist = []
-    for i in range(players):
-        key = KEY()
-        key.generate()
-        keylist.append(key.get_secret())
-    return keylist
+    return [PrivateKey().secret for _ in range(players)]
 
 
 def main():

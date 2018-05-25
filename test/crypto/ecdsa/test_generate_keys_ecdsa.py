@@ -3,14 +3,12 @@ from collections import namedtuple
 from pytest import mark
 
 
-@mark.skip('python 3 port issue')
 def test_generate_key_list():
     from honeybadgerbft.crypto.ecdsa.generate_keys_ecdsa import generate_key_list
     keylist = generate_key_list(10)
     assert len(keylist) == 10
 
 
-@mark.skip('python 3 port issue')
 def test_main(monkeypatch):
     from honeybadgerbft.crypto.ecdsa.generate_keys_ecdsa import main
 

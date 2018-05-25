@@ -28,6 +28,7 @@ install_requires = [
     'zfec>=1.5.0',
     'gipc',
     'charm-crypto>=0.50',
+    'coincurve',
 ]
 
 tests_require = [

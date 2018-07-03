@@ -1,5 +1,7 @@
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from distutils.util import strtobool
+from os import environ
 
 import gevent
 from gevent.event import Event
@@ -8,6 +10,7 @@ from honeybadgerbft.exceptions import RedundantMessageError
 
 
 logger = logging.getLogger(__name__)
+CONF_PHASE = strtobool(environ.get('CONF_PHASE', '1'))
 
 
 def byz_ba_issue_59(sid, pid, N, f, coin, input, decide, broadcast, receive):
@@ -29,7 +32,9 @@ def byz_ba_issue_59(sid, pid, N, f, coin, input, decide, broadcast, receive):
     # Messages received are routed to either a shared coin, the broadcast, or AUX
     est_values = defaultdict(lambda: [set(), set()])
     aux_values = defaultdict(lambda: [set(), set()])
+    conf_values = defaultdict(lambda: {(0,): set(), (1,): set(), (0, 1): set()})
     est_sent = defaultdict(lambda: [False, False])
+    conf_sent = defaultdict(lambda: {(0,): False, (1,): False, (0, 1): False})
     bin_values = defaultdict(set)
 
     # This event is triggered whenever bin_values or aux_values changes
@@ -89,6 +94,26 @@ def byz_ba_issue_59(sid, pid, N, f, coin, input, decide, broadcast, receive):
 
                 bv_signal.set()
 
+            elif msg[0] == 'CONF' and CONF_PHASE:
+                # CONF message
+                _, r, v = msg
+                assert v in ((0,), (1,), (0, 1))
+                if sender in conf_values[r][v]:
+                    # FIXME: raise or continue? For now will raise just
+                    # because it appeared first, but maybe the protocol simply
+                    # needs to continue.
+                    print(f'Redundant CONF received {msg} by {sender}')
+                    raise RedundantMessageError(
+                        f'Redundant CONF received {msg} by {sender}')
+
+                conf_values[r][v].add(sender)
+                logger.debug(
+                    f'add v = {v} to conf_value[{r}] = {conf_values[r]}',
+                    extra={'nodeid': pid, 'epoch': r},
+                )
+
+                bv_signal.set()
+
     # Run the receive loop in the background
     _thread_recv = gevent.spawn(_recv)
 
@@ -137,6 +162,13 @@ def byz_ba_issue_59(sid, pid, N, f, coin, input, decide, broadcast, receive):
         )
         broadcast(('EST', r, est), receiver=0)
         broadcast(('EST', r, int(not bool(est))), receiver=1)
+
+        # XXX CONF phase
+        if CONF_PHASE and not conf_sent[r][(0, 1)]:
+            conf_sent[r][(0, 1)] = True
+            logger.debug(f"broadcast {('CONF', r, (0, 1))}",
+                         extra={'nodeid': pid, 'epoch': r})
+            broadcast(('CONF', r, (0, 1)))
 
         logger.debug(
             f'Block until receiving the common coin value',

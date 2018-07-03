@@ -91,10 +91,15 @@ def byzantine_broadcast_router(N, maxdelay=0.005, seed=None, **byzargs):
             [makeRecv(j) for j in range(N)])
 
 
+def release_held_messages(q, receivers):
+    for m in q:
+        receivers[m['receiver']].put((m['sender'], m['msg']))
+
+
 def network_scheduler(events, message_queues, receivers, rounds):
     for r in rounds:
         print(f'round {r}')
-        for i in range(8):
+        for i in range(7):
             events[r, i].wait()
             for m in message_queues[r, i]:
                 gevent.spawn_later(
@@ -104,6 +109,9 @@ def network_scheduler(events, message_queues, receivers, rounds):
                 )
             else:
                 events[r, i, 'done'].set()
+        events[r, 7].wait()
+        gevent.spawn(release_held_messages, message_queues[r, 7], receivers)
+        events[r, 7, 'done'].set()
 
 
 def byzantine_router_issue_59(N):
@@ -150,7 +158,8 @@ def byzantine_router_issue_59(N):
                         coins[epoch].put(int(not bool(m[2][2])))
                         votes[epoch + 1] = int(not bool(m[2][2]))
                         break
-            if counters[epoch, phase] == counter:
+            if (counters[epoch, phase] == counter and
+                    StopIteration not in message_queues[epoch, phase].queue):
                 message_queues[epoch, phase].put(StopIteration)
 
         def _set_event(*, events, epoch, phase):
@@ -209,12 +218,21 @@ def byzantine_router_issue_59(N):
                 {'phase': 4, 'messages': M4, 'counter': 1},
             )
 
-            if i in (0, 1, 2, 3) and j == 3:
-                if r == 0 or events[r-1, 6].ready() and o[1] == r:
-                    gevent.spawn_later(
-                        0.00000000000000001, receivers[j].put, (i, o))
+            if o[0] == 'CONF':
+                gevent.spawn_later(
+                    0.00000000000000001, receivers[j].put, (i, o))
+
+            elif j == 3 and (r == 0 or events[r-1, 6].ready() and o[1] == r):
+                gevent.spawn_later(
+                    0.00000000000000001, receivers[j].put, (i, o))
             else:
                 held_messages[o[1]].add((i, j, o))
+
+            if r > 0 and events[r-1, 6, 'done'].ready():
+                for m in set(held_messages[r-1]):
+                    message_queues[r-1, 7].put(
+                        {'sender': m[0], 'receiver': m[1], 'msg': m[2]})
+                    held_messages[r-1].remove(m)
 
             for message_group in G1:
                 _queue_messages(
@@ -254,13 +272,11 @@ def byzantine_router_issue_59(N):
                         epoch=r, phase=message_group['phase'], events=events)
 
             if events[r, 6].ready():
+                events[r, 7].set()
                 for m in set(held_messages[r]):
                     message_queues[r, 7].put(
                         {'sender': m[0], 'receiver': m[1], 'msg': m[2]})
                     held_messages[r].remove(m)
-                else:
-                    message_queues[r, 7].put(StopIteration)
-                    events[r, 7].set()
 
             if events[r, 7].ready():
                 votes[r] = coins[r].peek()
@@ -342,7 +358,7 @@ def test_binaryagreement_dummy():
     _test_binaryagreement_dummy()
 
 
-@mark.parametrize('msg_type', ('EST', 'AUX'))
+@mark.parametrize('msg_type', ('EST', 'AUX', 'CONF'))
 @mark.parametrize('byznode', (1, 2, 3))
 def test_binaryagreement_dummy_with_redundant_messages(byznode, msg_type):
     N = 4
@@ -534,11 +550,7 @@ def test_set_next_round_estimate_raises(values, s, already_decided):
         )
 
         
-@mark.skip(
-    reason=('Will loop indefinitely as fix is not implemented yet.'
-            'See https://github.com/amiller/HoneyBadgerBFT/issues/59')
-)
-def test_issue59_attack():
+def test_issue59_attack(caplog):
     from .byzantine import byz_ba_issue_59
     N = 4
     f = 1
@@ -550,7 +562,6 @@ def test_issue59_attack():
     inputs = []
     outputs = []
 
-    # Instantiate the common coin
     coins_seed = rnd.random()
     coins = _make_coins(sid+'COIN', N, f, coins_seed)
 
@@ -572,16 +583,38 @@ def test_issue59_attack():
     inputs[2].put(1)    # B
     inputs[3].put(0)    # F (x)
 
-    #with raises(gevent.hub.LoopExit) as err:
-    #outs = [outputs[i].get() for i in range(N)]
-    failing = True
-    while failing:
-        try:
-            outs = [outputs[i].get() for i in range(N)]
-        except gevent.hub.LoopExit:
-            pass
-        else:
-            failing = False
+    try:
+        outs = [outputs[i].get() for i in range(N)]
+    except gevent.hub.LoopExit:
+        ba_node_2_log_records = [
+            record for record in caplog.records
+            if record.nodeid == 2 and record.module == 'binaryagreement'
+        ]
+        round_0_records = [
+            record for record in ba_node_2_log_records if record.epoch == 0
+        ]
+        round_1_records = [
+            record for record in ba_node_2_log_records if record.epoch == 1
+        ]
+        conf_phase_record = [
+            record for record in round_0_records
+            if record.message == 'Completed CONF phase with values = {0, 1}'
+        ]
+        assert len(conf_phase_record) == 1
+        coin_value_record = [
+            record for record in round_0_records
+            if record.message.startswith('Received coin with value = ')
+        ]
+        assert len(coin_value_record) == 1
+        coin_value = coin_value_record[0].message.split('=')[1]
+        round_1_begin_log = [
+            record for record in round_1_records
+            if record.message.startswith('Starting with est = ')
+        ]
+        assert len(round_1_begin_log) == 1
+        est_value_round_1 = round_1_begin_log[0].message.split('=')[1]
+        assert est_value_round_1 == coin_value
+
     try:
         gevent.joinall(threads)
     except gevent.hub.LoopExit:

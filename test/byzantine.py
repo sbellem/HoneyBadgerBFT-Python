@@ -4,7 +4,8 @@ from distutils.util import strtobool
 from os import environ
 
 import gevent
-from gevent.event import Event
+from gevent.event import AsyncResult, Event
+from gevent.queue import Queue
 
 from honeybadgerbft.exceptions import RedundantMessageError
 
@@ -12,6 +13,7 @@ from honeybadgerbft.exceptions import RedundantMessageError
 logger = logging.getLogger(__name__)
 CONF_PHASE = strtobool(environ.get('CONF_PHASE', '1'))
 
+a0, a1, bob, x = 0, 1, 2, 3
 
 def byz_ba_issue_59(sid, pid, N, f, coin, input, decide, broadcast, receive):
     """Modified binary consensus from [MMR14], so that it exhibits a
@@ -190,3 +192,205 @@ def byz_ba_issue_59(sid, pid, N, f, coin, input, decide, broadcast, receive):
                      extra={'nodeid': pid, 'epoch': r})
         est = s
         r += 1
+
+
+class SendCondition(Event):
+
+    epoch = 0
+    priority = None
+    value = None
+
+
+class NetworkScheduler:
+    COIN_PHASE_BEGIN = 18
+    LAST = 24
+    NO_DELAY = None
+
+    def __init__(self, *, receivers):
+        self.queues = [Queue() for _ in range(4)]
+        self.receivers = receivers
+        self.events = defaultdict(SendCondition)
+        self.coins = defaultdict(AsyncResult)
+        self.initial_values = defaultdict(AsyncResult)
+        self.initial_values[0].set(0)
+
+    def consume_queue(self, queue):
+        for m in queue:
+            gevent.spawn(self.schedule, m)
+
+    def schedule(self, message):
+        # TODO once get_events() is implemented
+        # event, next_event = self.get_events(message)
+        sender, receiver, (tag, epoch, bin_value) = message
+        priority = self.get_priority(message)
+
+        if priority == self.COIN_PHASE_BEGIN:
+            coin = int(not bool(bin_value))
+            self.coins[epoch].set(coin)
+            self.initial_values[epoch + 1].set(coin)
+
+        if priority == self.LAST:
+            next_event_priority = 0
+            next_event_epoch = epoch + 1
+        elif priority is not self.NO_DELAY:
+            next_event_priority = priority + 1
+            next_event_epoch = epoch
+
+        try:
+            next_event = self.events[next_event_epoch, next_event_priority]
+        except NameError:
+            next_event = None
+        else:
+            next_event.priority = next_event_priority
+            next_event.epoch = next_event_epoch
+
+        event = self.events[epoch, priority]
+        event.epoch = epoch
+        event.priority = priority
+        event.value = bin_value
+
+        logger.debug(f'Schedule message {message} with priority {priority}.',
+                     extra={'nodeid': message[0], 'epoch': message[2][1]})
+        gevent.spawn(self.send, message, event=event, next_event=next_event)
+
+    def send(self, message, *, event, next_event):
+        sender, receiver, (tag, epoch, value) = message
+        logger.info(
+            f'Wait for condition {event} with priority {event.priority} for'
+            f'epoch {event.epoch} and value {event.value}',
+            extra={'nodeid': sender, 'epoch': epoch},
+        )
+        event.wait()
+        logger.info(f'Send message {message} --- PRIORITY: {event.priority}',
+                    extra={'nodeid': sender, 'epoch': epoch})
+        self.receivers[receiver].put((sender, (tag, epoch, value)))
+        if next_event:
+            logger.info(
+                f'Set (ready) condition {next_event} with priority'
+                f'{next_event.priority} for epoch {next_event.epoch}'
+                f'and value {event.value}',
+                extra={'nodeid': sender, 'epoch': epoch},
+            )
+            next_event.set()
+
+            # Move to next round.
+            if next_event.priority == self.LAST:
+                self.events[next_event.epoch + 1, self.NO_DELAY].set()
+
+    def get_priority(self, message):
+        message_map = self.get_message_map(message)
+        _, receiver, (tag, epoch, _) = message
+        try:
+            priority = message_map[message]
+        except KeyError:
+            if tag == 'CONF' or receiver == x:
+                priority = self.NO_DELAY
+            else:
+                priority = self.LAST
+        return priority
+
+    def get_events(self, message):
+        raise NotImplementedError
+
+    def get_message_map(self, message):
+        sender, receiver, (tag, epoch, _) = message
+        if self.is_a_coin_dependent_message(
+                sender=sender, receiver=receiver, tag=tag):
+            message_map = self.coin_dependent_message_map(epoch)
+        else:
+            message_map = self.coin_independent_message_map(epoch)
+        return message_map
+
+    def coin_independent_message_map(self, epoch):
+        r = epoch
+        v = self.initial_values[r].get()
+        not_v = int(not bool(v))
+        msg_map = {
+            (x, a0, ('EST', r, not_v)): 0,
+            (x, a1, ('EST', r, v)): 1,
+            (bob, a0, ('EST', r, not_v)): 2,
+            (bob, a1, ('EST', r, not_v)): 3,
+            (a0, a0, ('EST', r, v)): 4,
+            (a0, a0, ('EST', r, not_v)): 5,
+            # ...
+            (a1, a1, ('EST', r, v)): 6,
+            (a0, a1, ('EST', r, v)): 7,
+            # ...
+            (a1, a0, ('EST', r, v)): 8,
+            (a0, a1, ('EST', r, not_v)): 9,
+            (a0, a0, ('AUX', r, not_v)): 10,
+            (a0, a1, ('AUX', r, not_v)): 11,
+            (a1, a0, ('AUX', r, v)): 12,
+            (a1, a1, ('AUX', r, v)): 13,
+            # ...
+            (x, a0, ('EST', r, v)): 14,
+            (x, a1, ('EST', r, not_v)): 15,
+            (x, a0, ('AUX', r, not_v)): 16,
+            (x, a1, ('AUX', r, not_v)): 17,
+            # not_coin phase - one of these two messages is sent to B, such
+            # that the value is the boolean NOT of the coin value
+            (x, bob, ('EST', r, 0)): 18,
+            (x, bob, ('EST', r, 1)): 18,
+        }
+        return msg_map
+
+    def coin_dependent_message_map(self, epoch):
+        """Messages for which the scheduling depends on the value of
+        the coin.
+        """
+        coin = self.coins[epoch].get()
+        not_coin = int(not bool(coin))
+        return {
+            (a0, bob, ('EST', epoch, not_coin)): 19,
+            (a1, bob, ('EST', epoch, not_coin)): 20,
+            (a0, bob, ('AUX', epoch, not_coin)): 21,
+            (a1, bob, ('AUX', epoch, not_coin)): 21,
+            (bob, bob, ('AUX', epoch, not_coin)): 22,
+            (x, bob, ('AUX', epoch, not_coin)): 23,
+        }
+
+    def is_a_coin_dependent_message(self, *, sender, receiver, tag):
+        """Checks if the message depends on the value of the coin for
+        its scheduling.
+        """
+        return receiver == bob and (tag == 'AUX' or
+                                    sender in (a0, a1) and tag == 'EST')
+
+    def start(self):
+        for queue in self.queues:
+            gevent.spawn(self.consume_queue, queue)
+        self.events[0, 0].set()
+        self.events[0, self.NO_DELAY].set()
+
+
+def broadcast_router(N):
+    """Router controlled by an adversary such that incoming messages are
+    redirected to the queues of an adversarial network scheduler.
+
+    :return: (receives, sends)
+    """
+    queues = [Queue() for _ in range(N)]
+    ns = NetworkScheduler(receivers=queues)
+    ns.start()
+
+    def makeBroadcast(i):
+        def _send(j, o):
+            ns.queues[i].put((i, j, o))
+
+        def _bc(o, receiver=None):
+            if receiver is not None:
+                _send(receiver, o)
+            else:
+                for j in range(N):
+                    _send(j, o)
+
+        return _bc
+
+    def makeRecv(j):
+        def _recv():
+            (i,o) = queues[j].get()
+            return (i,o)
+        return _recv
+
+    return ([makeBroadcast(i) for i in range(N)],
+            [makeRecv(j) for j in range(N)])

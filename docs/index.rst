@@ -11,6 +11,7 @@ Welcome to HoneyBadgerBFT's documentation!
    :caption: Contents:
    
    libref
+   paper/index
 
 
 Indices and tables

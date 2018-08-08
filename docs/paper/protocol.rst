@@ -61,15 +61,14 @@ properties, all of which should hold with high probability (as a function*
 * *(Agreement)* If any correct node outputs a transaction :math:`\mathsf{tx}`,
   then every correct node outputs :math:`\mathsf{tx}`.
 * *(Total Order)* If one correct node has output the sequence of transactions
-  :math:`(\mathsf{tx}_0, \mathsf{tx}_1, \ldots \mathsf{tx}_j)` and another
+  :math:`\langle \mathsf{tx}_0, \mathsf{tx}_1, \ldots \mathsf{tx}_j \rangle` and another
   has output
-  :math:`(\mathsf{tx}^\prime_0, \mathsf{tx}^\prime_1, \ldots \mathsf{tx}^\prime_{j^\prime})`,
+  :math:`\langle \mathsf{tx}^\prime_0, \mathsf{tx}^\prime_1, \ldots \mathsf{tx}^\prime_{j^\prime} \rangle`,
   then :math:`\mathsf{tx}_i = \mathsf{tx}^\prime_i \text{ for } i \leq \min(j, j^\prime)`.
 * *(Censorship Resilience)* If a transaction :math:`\mathsf{tx}` is input to
   :math:`N - f` correct nodes, then it is eventually output by every correct
   node.
 
-.. todo:: Replace parenthesis by "kets" or whatever they are called.
 .. todo:: Use nice lambda like in the paper.
 
 The censorship resilience property is a liveness property that prevents an
@@ -196,8 +195,8 @@ instantiated using TLS sockets, for example, as we discuss in
 :ref:`Section 5 <impl-and-eval>`.
 
 To distinguish different message types sent between parties within a protocol,
-we use a label in :math:`\texttt{typewriter}` font (e.g.,
-:math:`\tt{VAL}(m)` indicates a message :math:`m` of type :math:`\tt{VAL}`).
+we use a label in :math:`\tt{typewriter}` font (e.g., :math:`\tt{VAL}(m)`
+indicates a message :math:`m` of type :math:`\tt{VAL}`).
 
 
 .. _constructing-hbbft-from-acs:
@@ -329,7 +328,7 @@ vector :math:`\{b_j\}_{j \in [1..N]}`, where :math:`b_j = 1` indicates that
 
 Actually the simple description above conceals a subtle challenge, for which
 Ben-Or provide a clever solution.
-`
+
 A naïve attempt at an implementation of the above sketch would have each node
 to wait for the first :math:`(N - f)` broadcasts to complete, and then propose
 :math:`1` for the binary agreement instances corresponding to those and
@@ -343,29 +342,12 @@ To avoid this problem, nodes abstain from proposing :math:`0` until they are
 certain that the final vector will have at least :math:`N - f` bits set. To
 provide some intuition for the flow of this protocol, we narrate several
 possible scenarios in Figure 3. The algorithm from Ben-Or et al.
-:cite:`Ben-Or:1994:ASC:197917.198088` is given in Figure 4. The running time is
-:math:`\mathcal{O}(\log N)` in expectation, since it must wait for all binary agreement
-instances to finish. [#f4]_ When instantiated with the reliable broadcast and binary
-agreement constructions described above, the total communication
-complexity is :math:`\mathcal{O}(N^2 |v| + \lambda N^3 \log N)` assuming
-:math:`|v|` is the largest size of any node’s input.
-
-
-
-
-+-------------+---------------+-+---------------+-+---------------+
-|             | ``RBC_j``     | |  ``BA_j`` in  | |  ``BA_j`` out | 
-+=============+===+===+===+===+=+===+===+===+===+=+===+===+===+===+
-| ``pid \ j`` | 0 | 1 | 2 | 3 | | 0 | 1 | 2 | 3 | | 0 | 1 | 2 | 3 |
-+-------------+---+---+---+---+-+---+---+---+---+-+---+---+---+---+
-| 0           | v | - | v | v | | 1 | 0 | 1 | 1 | | 0 | 0 | 1 | 1 |
-+-------------+---+---+---+---+-+---+---+---+---+-+---+---+---+---+
-| 1           | - | v | v | v | | 0 | 1 | 1 | 1 | | 0 |   |   |   |
-+-------------+---+---+---+---+-+---+---+---+---+-+---+---+---+---+
-| 2           | - | v | v | v | | 0 | 1 | 1 | 1 | |   |   |   |   |
-+-------------+---+---+---+---+-+---+---+---+---+-+---+---+---+---+
-| 3           | v | - | v | v | | 1 | 0 | 1 | 1 | |   |   |   |   |
-+-------------+---+---+---+---+-+---+---+---+---+-+---+---+---+---+
+:cite:`Ben-Or:1994:ASC:197917.198088` is given in Figure 4. The running time
+is :math:`\mathcal{O}(\log N)` in expectation, since it must wait for all
+binary agreement instances to finish. [#f4]_ When instantiated with the
+reliable broadcast and binary agreement constructions described above, the
+total communication complexity is :math:`\mathcal{O}(N^2 |v| + \lambda N^3
+\log N)` assuming :math:`|v|` is the largest size of any node’s input.
 
 
 Analysis

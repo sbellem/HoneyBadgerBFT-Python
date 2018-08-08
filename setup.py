@@ -51,7 +51,7 @@ docs_require = [
     'Sphinx',
     'sphinx-autobuild',
     'sphinx_rtd_theme',
-    'pybtex>0.21',
+    'pybtex>=0.22a0',
     'sphinxcontrib-bibtex',
 ]
 
@@ -85,6 +85,6 @@ setup(
     },
     dependency_links=[
         'git+https://github.com/JHUISI/charm.git@dev#egg=0.50',
-	'git+https://sbellem@bitbucket.org/pybtex-devs/pybtex.git@master#egg=pybtex-0.22',
+	'git+https://sbellem@bitbucket.org/pybtex-devs/pybtex.git@master#egg=pybtex-0.22a0',
     ],
 )

@@ -8,9 +8,7 @@ The Honey Badger of BFT Protocols
 * Elaine Shi -- Cornell University
 * Dawn Song -- University of California, Berkeley
 
-********
-ABSTRACT
-********
+**ABSTRACT**
 
 The surprising success of cryptocurrencies has led to a surge of interest
 in deploying large scale, highly robust, Byzantine fault tolerant
@@ -22,7 +20,7 @@ only guarantee liveness when the network behaves as expected. We
 argue these protocols are ill-suited for this deployment scenario.
 
 We present an alternative, HoneyBadgerBFT, the first practical
-asynchronous BFT protocol, which guarantees liveness without making
+*asynchronous* BFT protocol, which guarantees liveness without making
 any timing assumptions. We base our solution on a novel atomic
 broadcast protocol that achieves optimal asymptotic efficiency. We
 present an implementation and experimental results to show our
@@ -33,7 +31,7 @@ to tune any parameters. Unlike the alternatives, HoneyBadgerBFT
 simply does not care about the underlying network.
 
 .. toctree::
-    :maxdepth: 1
+    :maxdepth: 3
     
     intro
     background

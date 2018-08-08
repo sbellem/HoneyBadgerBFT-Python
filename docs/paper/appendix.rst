@@ -4,11 +4,20 @@
 APPENDIX
 ********
 
+.. contents::
+    :local:
+
+.. _pbft-attack:
+
 ATTACKING PBFT
 ==============
 
+.. _deferred-proofs:
+
 DEFERRED PROOFS
 ===============
+
+.. _aba:
 
 ASYNCHRONOUS BINARY BYZANTINE AGREEMENT
 =======================================

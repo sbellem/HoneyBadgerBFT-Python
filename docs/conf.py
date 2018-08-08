@@ -12,6 +12,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'sphinxcontrib.bibtex',
 ]
 
 autodoc_default_flags = [

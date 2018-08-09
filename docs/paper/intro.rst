@@ -73,7 +73,7 @@ Our Contributions
 **Timing assumptions considered harmful.** Most existing Byzantine fault
 tolerant (BFT) systems, even those called "robust," assume some variation of
 weak synchrony, where, roughly speaking, messages are guaranteed to be
-delivered after a certain bound :math:`\delta`, but :math:`\delta` may be
+delivered after a certain bound :math:`\Delta`, but :math:`\Delta` may be
 time-varying or unknown to the protocol designer. We argue that protocols
 based on timing assumptions are unsuitable for decentralized, cryptocurrency
 settings, where network links can be unreliable, network speeds change

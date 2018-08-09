@@ -209,7 +209,7 @@ asynchronous common subset (ACS). The theoretical feasibility of constructing
 ACS has been demonstrated in several works
 :cite:`Ben-Or:1994:ASC:197917.198088,Cachin:2001:SEA:646766.704283`. In this
 section, we will present the formal definition of ACS and use it as a blackbox
-to construct HoneyBadgerBFT. Later in :ref:`Section 4.4 <inst-acs-eff>`, we
+to construct HoneyBadgerBFT. Later in Section 4.4 (:ref:`inst-acs-eff`), we
 will show that by combining several constructions that were somewhat
 overlooked in the past, we can instantiate ACS efficiently!
 
@@ -232,7 +232,54 @@ until at least one correct node reveals its decryption share, the attacker
 learns nothing about the plaintext. A threshold scheme provides the following
 interface:
 
-**Atomic broadcast from ACS.**
+* :math:`\mathsf{TPKE.Setup}(1^\lambda) \rightarrow \mathsf{PK},
+  \{\mathsf{SK}_i\}` generates a public encryption key :math:`\mathsf{PK}`,
+  along with secret keys for each party :math:`\mathsf{SK}_i`
+* :math:`\mathsf{TPKE.Enc}(\mathsf{PK}, m) \rightarrow C` encrypts a message
+  :math:`m`
+* :math:`\mathsf{TPKE.DecShare}(\mathsf{SK}_i, C) \rightarrow \sigma_i`
+  produces the :math:`i^{th}` share of the decryption (or :math:`\bot` if
+  :math:`C` is malformed)
+* :math:`\mathsf{TPKE.Dec}(\mathsf{PK}, C, \{i, \sigma_i\}) \rightarrow m`
+  combines a set of decryption shares :math:`\{i, \sigma_i\}` from at least
+  :math:`f + 1` parties obtain the plaintext :math:`m` (or, if :math:`C`
+  contains invalid shares, then the invalid shares are identified).
+
+In our concrete instantiation, we use the threshold encryption scheme of Baek
+and Zheng :cite:`1258486`. This scheme is also robust (as required by our
+protocol), which means that even for an adversarially generated ciphertext
+:math:`C`, at most one plaintext (besides :math:`\bot`) can be recovered.
+Note that we assume :math:`\mathsf{TPKE.Dec}` effectively identifies
+*invalid* decryption shares among the inputs. Finally, the scheme satisfies
+the obvious correctness properties, as well as a threshold version of the
+*IND-CPA* game. [#f3]_
+
+**Atomic broadcast from ACS.** We now describe in more detail our atomic
+broadcast protocol, defined in Figure 1.
+
+As mentioned, this protocol is centered around an instance of ACS. In order
+to obtain scalable efficiency, we choose a batching policy. We let :math:`B`
+be a batch size, and will commit :math:`\Omega(B)` transactions in each
+epoch. Each node proposes :math:`B/N` transactions from its queue. To ensure
+that nodes propose mostly distinct transactions, we randomly select these
+transactions from the first :math:`B` in each queue.
+
+As we will see in Section 4.4 (:ref:`inst-acs-eff`), our ACS instantiation
+has a total communication cost of :math:`\mathcal{O}(N^2 |v| + \lambda N^3
+\log N)`, where :math:`|v|` bounds the size of any node’s input. We therefore
+choose a batch size :math:`B = \Omega(\lambda N^2 \log N)` so that the
+contribution from each node :math:`(B/N)` absorbs this additive overhead.
+
+In order to prevent the adversary from influencing the outcome we use a
+threshold encryption scheme, as described below. In a nutshell, each node
+chooses a set of transactions, and then encrypts it. Each node then passes
+the encryption as input to the ACS subroutine. The output of ACS is therefore
+a vector of ciphertexts. The ciphertexts are decrypted once the ACS is
+complete. This guarantees that the set of transactions is fully determined
+before the adversary learns the particular contents of the proposals made by
+each node. This guarantees that an adversary cannot selectively prevent a
+transaction from being committed once it is in the front of the queue at
+enough correct nodes.
 
 
 .. _inst-acs-eff:
@@ -240,13 +287,13 @@ interface:
 Instantiating ACS Efficiently
 =============================
 Cachin et al. present a protocol we call CKPS01 that (implicitly) reduces ACS
-to multi-valued validated Byzantine agreement (MVBA) :cite:`Cachin:2001:SEA:646766.704283`. Roughly speaking,
-MVBA allows nodes to propose values satisfying a predicate, one of which is
-ultimately chosen. The reduction is simple: the validation predicate says that
-the output must be a vector of signed inputs from at least :math:`N - f`
-parties. Unfortunately, the MVBA primitive agreement becomes a bottleneck,
-because the only construction we know of incurs an overhead of
-:math:`\mathcal{O}(N^3 |v|)`.
+to multi-valued validated Byzantine agreement (MVBA)
+:cite:`Cachin:2001:SEA:646766.704283`. Roughly speaking, MVBA allows nodes to
+propose values satisfying a predicate, one of which is ultimately chosen. The
+reduction is simple: the validation predicate says that the output must be a
+vector of signed inputs from at least :math:`N - f` parties. Unfortunately,
+the MVBA primitive agreement becomes a bottleneck, because the only
+construction we know of incurs an overhead of :math:`\mathcal{O}(N^3 |v|)`.
 
 We avoid this bottleneck by using an alternative instantiation of ACS that
 sidesteps MVBA entirely. The instantiation we use is due to Ben-Or et al.
@@ -352,7 +399,9 @@ total communication complexity is :math:`\mathcal{O}(N^2 |v| + \lambda N^3
 
 Analysis
 ========
-
+First we observe that the agreement and total order properties follow
+immediately from the definition of ACS and robustness of the
+:math:`\mathsf{TPKE}` scheme.
 
 
 
@@ -365,6 +414,10 @@ Analysis
 
 .. [#f2] Reliable channels can be emulated on top of unreliable channels by
 	resending transmissions, at the expense of some efficiency.
+
+.. [#f3] The Baek and Zheng threshold scheme also satisfies (the threshold
+    equivalent of) the stronger *IND-CCA* game, but this is not required by
+    our protocol.
 
 .. [#f4] The expected running time can be reduced to :math:`\mathcal{O}(1)`
     (c.f. :cite:`Ben-Or:2003:RIC:1061993.1061994`) by running several instances in

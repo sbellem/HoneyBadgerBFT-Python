@@ -403,10 +403,51 @@ First we observe that the agreement and total order properties follow
 immediately from the definition of ACS and robustness of the
 :math:`\mathsf{TPKE}` scheme.
 
+**Theorem 1.** (Agreement and total order). *The HoneyBadgerBFT protocol
+satisfies the agreement and total order properties, except for negligible
+probability.*
+
+**Proof.** These two properties follow immediately from properties of the
+high-level protoocls, ACS and :math:`\mathsf{TPKE}`. Each ACS instance
+guarantees that nodes agree on a vector of ciphertexts in each epoch (Step 2).
+The robustness of :math:`\mathsf{TPKE}` guarantees that each correct node
+decrypts these ciphertexts to consistent values (Step 3). This suffices to
+ensure agreement and total order.
 
 
+**Theorem 2.** (Complexity). *Assuming a batch size of* :math:`B = \Omega(
+\lambda N^2 \log N)` *, the running time for each HoneyBadgerBFT epoch is*
+:math:`\mathcal{O}(\log N)` *in expectation, and the total expected
+communication complexity is* :math:`\mathcal{O}(B)`.
 
+**Proof.** The cost and running time of ACS is explained in Section 4.4. (
+:ref:`inst-acs-eff`) The :math:`N` instances of threshold decryption incur
+one additional round and an additional cost of :math:`\mathcal{O}(\lambda N^2`
+), which does not affect the overall asymptotic cost.
 
+The HoneyBadgerBFT protocol may commit up to :math:`B` transactions in a
+single epoch. However, the actual number may be less than this, since some
+correct nodes may propose overlapping transaction sets, others may respond too
+late, and corrupted nodes may propose an empty set. Fortunately, we prove (in
+the :ref:`Appendix <appendix>`) that assuming each correct node’s queue is
+full, then :math:`B/4` serves as an lower bound for the expected number of
+transactions committed in an epoch. [#f5]_
+
+**Theorem 3.** (Efficiency). *Assuming each correct node’s queue contains at
+least* :math:`B` *distinct transactions, then the expected number of
+transactions committed in an epoch is at least* :math:`\frac{B}{4}`,
+resulting in constant efficiency.
+
+Finally, we prove (in the :ref:`Appendix <appendix>`) that the adversary
+cannot significantly delay the commit of any transaction.
+
+**Theorem 4.** (Censorship Resilience). *Suppose an adversary passes a
+transaction* :math:`\mathsf{tx}` *as input to* :math:`N − f` *correct nodes.*
+*Let* :math:`T` *be the size of the "backlog", i.e. the difference between the
+total number of transactions previously input to any correct node and the 
+number of transactions that have been committed. Then* :math:`\mathsf{tx}` is
+commited within :math:`\mathcal{O}(T/B + \lambda)` *epochs except with
+negligible probability.*
 
 .. rubric:: Footnotes
 
@@ -422,3 +463,6 @@ immediately from the definition of ACS and robustness of the
 .. [#f4] The expected running time can be reduced to :math:`\mathcal{O}(1)`
     (c.f. :cite:`Ben-Or:2003:RIC:1061993.1061994`) by running several instances in
     parallel, though this comes at the expense of throughput.
+
+.. [#f5] The actual bound is :math:`(1 - e^{-1/3})B > B/4`, but we use the
+    looser bound :math:`B/4` for readability.

@@ -8,3 +8,5 @@ cryptocurrency-inspired deployments of fault tolerant transaction processing
 systems. More generally, we believe our work demonstrates the promise of
 building dependable and transaction processing systems based on asynchronous
 protocol.
+
+**Acknowledgements.**

@@ -397,6 +397,8 @@ total communication complexity is :math:`\mathcal{O}(N^2 |v| + \lambda N^3
 \log N)` assuming :math:`|v|` is the largest size of any node’s input.
 
 
+.. _analysis:
+
 Analysis
 ========
 First we observe that the agreement and total order properties follow

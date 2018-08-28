@@ -95,7 +95,7 @@ def client_test_freenet(N, t, options):
     initiateECDSAKeys(open(options.ecdsa, 'r').read())
     initiateThresholdEnc(open(options.threshold_encs, 'r').read())
     initializeGIPC(getKeys()[0])
-    buffers = map(lambda _: Queue(1), range(N))
+    buffers = list(map(lambda _: Queue(1), range(N)))
     global logGreenlet
     logGreenlet = Greenlet(logWriter, open('msglog.TorMultiple', 'w'))
     logGreenlet.parent_args = (N, t)
@@ -141,8 +141,8 @@ def client_test_freenet(N, t, options):
         except ACSException:
             gevent.killall(ts)
         except finishTransactionLeap:  ### Manually jump to this level
-            print 'msgCounter', msgCounter
-            print 'msgTypeCounter', msgTypeCounter
+            print('msgCounter', msgCounter)
+            print('msgTypeCounter', msgTypeCounter)
             # message id 0 (duplicated) for signatureCost
             logChannel.put(StopIteration)
             mylog("=====", verboseLevel=-1)
@@ -155,7 +155,7 @@ def client_test_freenet(N, t, options):
                 gevent.sleep(1)
             checkExceptionPerGreenlet()
         finally:
-            print "Concensus Finished"
+            print("Concensus Finished")
 
 # import GreenletProfiler
 import atexit
@@ -168,13 +168,13 @@ if USE_PROFILE:
     import GreenletProfiler
 
 def exit():
-    print "Entering atexit()"
-    print 'msgCounter', msgCounter
-    print 'msgTypeCounter', msgTypeCounter
+    print("Entering atexit()")
+    print('msgCounter', msgCounter)
+    print('msgTypeCounter', msgTypeCounter)
     nums,lens = zip(*msgTypeCounter)
-    print '    Init      Echo      Val       Aux      Coin     Ready    Share'
-    print '%8d %8d %9d %9d %9d %9d %9d' % nums[1:]
-    print '%8d %8d %9d %9d %9d %9d %9d' % lens[1:]
+    print('    Init      Echo      Val       Aux      Coin     Ready    Share')
+    print('%8d %8d %9d %9d %9d %9d %9d' % nums[1:])
+    print('%8d %8d %9d %9d %9d %9d %9d' % lens[1:])
     mylog("Total Message size %d" % totalMessageSize, verboseLevel=-2)
     if OUTPUT_HALF_MSG:
         halfmsgCounter = 0

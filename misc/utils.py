@@ -3,14 +3,19 @@ monkey.patch_all()
 
 from gevent.queue import Queue
 from gevent import Greenlet
+
+import base64
 import random
 import hashlib
 import gc
 import traceback
-import cPickle as pickle
+import pickle
 import struct
-from honeybadgerbft.crypto.ecdsa.ecdsa_ssl import KEY
 import os
+
+#from honeybadgerbft.crypto.ecdsa.ecdsa_ssl import KEY
+from coincurve import PublicKey
+
 from honeybadgerbft.crypto.threshsig import boldyreva as boldyreva
 from honeybadgerbft.crypto.threshenc.tpke import serialize, deserialize0, deserialize1, deserialize2, TPKEPublicKey, TPKEPrivateKey, group
 
@@ -121,11 +126,11 @@ def encodeTransaction(tr, randomGenerator=None, length=TR_SIZE):
     targetInd = nameList.index(tr.target)
     if randomGenerator:
         return struct.pack(
-        '<BBH', sourceInd, targetInd, tr.amount
-    ) + getSomeRandomBytes(TR_SIZE - 5, randomGenerator)  + '\x90'
+            '<BBH', sourceInd, targetInd, tr.amount
+        ) + getSomeRandomBytes(TR_SIZE - 5, randomGenerator) + b'\x90'
     return struct.pack(
         '<BBH', sourceInd, targetInd, tr.amount
-    ) + os.urandom(TR_SIZE - 5) + '\x90'
+    ) + os.urandom(TR_SIZE - 5) + b'\x90'
 
 
 # assumptions:
@@ -197,7 +202,7 @@ def serializeEnc(C):
     assert len(serialize(C[0]))==PAIRING_SERIALIZED_1
     assert len(C[1]) == CURVE_LENGTH
     assert len(serialize(C[2]))==PAIRING_SERIALIZED_1
-    return ''.join((serialize(C[0]), C[1], serialize(C[2])))
+    return b''.join((serialize(C[0]), C[1], serialize(C[2])))
 
 def deserializeEnc(r):
     return (deserialize1(r[:PAIRING_SERIALIZED_1]), r[PAIRING_SERIALIZED_1:PAIRING_SERIALIZED_1+CURVE_LENGTH],
@@ -274,14 +279,14 @@ def deepDecode(m, msgTypeCounter):
 def initiateThresholdSig(contents):
     global PK, SKs
     # print contents
-    (l, k, sVK, sVKs, SKs) = pickle.loads(contents)
+    (l, k, sVK, sVKs, SKs) = pickle.loads(base64.decodebytes(contents.encode()))
     PK, SKs = boldyreva.TBLSPublicKey(l, k, boldyreva.deserialize2(sVK), [boldyreva.deserialize2(sVKp) for sVKp in sVKs]), \
            [boldyreva.TBLSPrivateKey(l, k, boldyreva.deserialize2(sVK), [boldyreva.deserialize2(sVKp) for sVKp in sVKs], \
                            boldyreva.deserialize0(SKp[1]), SKp[0]) for SKp in SKs]
 
 def initiateThresholdEnc(contents):
     global encPK, encSKs
-    (l, k, sVK, sVKs, SKs) = pickle.loads(contents)
+    (l, k, sVK, sVKs, SKs) = pickle.loads(base64.decodebytes(contents.encode()))
     encPK, encSKs = TPKEPublicKey(l, k, deserialize1(sVK), [deserialize1(sVKp) for sVKp in sVKs]), \
            [TPKEPrivateKey(l, k, deserialize1(sVK), [deserialize1(sVKp) for sVKp in sVKs], \
                            deserialize0(SKp[1]), SKp[0]) for SKp in SKs]
@@ -289,11 +294,12 @@ def initiateThresholdEnc(contents):
 def initiateECDSAKeys(contents):
     global ecdsa_key_list
     ecdsa_key_list = []
-    ecdsa_sec_list = pickle.loads(contents)
+    ecdsa_sec_list = pickle.loads(base64.decodebytes(contents.encode()))
     for secret in ecdsa_sec_list:
-        k = KEY()
-        k.generate(secret)
-        k.set_compressed(True)
+        k = PublicKey.from_secret(secret)
+        #k = KEY()
+        #k.generate(secret)
+        #k.set_compressed(True)
         ecdsa_key_list.append(k)
 
 def getEncKeys():
@@ -320,7 +326,7 @@ def mylog(*args, **kargs):
     if not 'verboseLevel' in kargs:
         kargs['verboseLevel'] = 0
     if kargs['verboseLevel'] <= verbose:
-        print " ".join([isinstance(arg, str) and arg or repr(arg) for arg in args])
+        print(" ".join([isinstance(arg, str) and arg or repr(arg) for arg in args]))
         sys.stdout.flush()
         sys.stderr.flush()
 
@@ -443,7 +449,7 @@ if __name__ == '__main__':
     a.data = 1
 
     def callback(val):
-        print "Callback called with", val
+        print("Callback called with", val)
 
     a.registerSetCallBack(callback)
     a.data = 2

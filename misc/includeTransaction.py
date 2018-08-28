@@ -3,13 +3,14 @@ __author__ = 'aluex'
 from gevent import Greenlet
 from gevent.queue import Queue, Empty
 from honeybadgerbft.core.commonsubset import commonsubset
-from utils import mylog, MonitoredInt, callBackWrap, greenletFunction, \
+from .utils import mylog, MonitoredInt, callBackWrap, greenletFunction, \
     greenletPacker, getEncKeys, Transaction, getECDSAKeys, sha1hash, TR_SIZE
 from collections import defaultdict
 import zfec
+from binascii import hexlify
 import hashlib
 from honeybadgerbft.crypto.threshenc.tpke import encrypt, decrypt
-from utils import serializeEnc, deserializeEnc, ENC_SERIALIZED_LENGTH
+from .utils import serializeEnc, deserializeEnc, ENC_SERIALIZED_LENGTH
 import random
 import itertools
 import gevent
@@ -91,7 +92,7 @@ def multiSigBr(pid, N, t, msg, broadcast, receive, outputs, send):
             tmp = someHash((tindex & 1) and br + tmp or tmp + br)
             tindex >>= 1
         if tmp != rootHash:
-            print "Verification failed with", someHash(val), rootHash, branch, tmp == rootHash
+            print("Verification failed with", someHash(val), rootHash, branch, tmp == rootHash)
         return tmp == rootHash
 
     def Listener():
@@ -110,7 +111,7 @@ def multiSigBr(pid, N, t, msg, broadcast, receive, outputs, send):
                         continue
                     if sender in rootHashes:
                         if rootHashes[sender]!= msgBundle[1][1]:
-                            print "Cheating caught, exiting"
+                            print("Cheating caught, exiting")
                             sys.exit(0)
                     else:
                         rootHashes[sender] = msgBundle[1][1]
@@ -128,7 +129,7 @@ def multiSigBr(pid, N, t, msg, broadcast, receive, outputs, send):
                         continue
                     if originBundle[0] in rootHashes:
                         if rootHashes[originBundle[0]]!= originBundle[2]:
-                            print "Cheating caught, exiting"
+                            print("Cheating caught, exiting")
                             sys.exit(0)
                     else:
                         rootHashes[originBundle[0]] = originBundle[2]
@@ -149,7 +150,7 @@ def multiSigBr(pid, N, t, msg, broadcast, receive, outputs, send):
                     reconstDone[msgBundle[1]] = True
                     if msgBundle[1] in rootHashes:
                         if rootHashes[msgBundle[1]]!= msgBundle[2]:
-                            print "Cheating caught, exiting"
+                            print("Cheating caught, exiting")
                             sys.exit(0)
                     else:
                         rootHashes[msgBundle[1]] = msgBundle[2]
@@ -174,7 +175,7 @@ def multiSigBr(pid, N, t, msg, broadcast, receive, outputs, send):
     greenletPacker(Greenlet(Listener), 'multiSigBr.Listener', (pid, N, t, msg, broadcast, receive, outputs)).start()
     buf = msg  # We already assumed the proposals are byte strings
 
-    step = len(buf) / Threshold + 1 # len(buf) % Threshold == 0 and len(buf) / Threshold or (len(buf) / Threshold + 1)
+    step = len(buf) // Threshold + 1     # len(buf) % Threshold == 0 and len(buf) / Threshold or (len(buf) / Threshold + 1)
     assert step * Threshold - len(buf) < 256  # assumption
     buf = buf.ljust(step * Threshold - 1, '\xFF') + chr(step * Threshold - len(buf))
     fragList = [buf[i*step : (i+1)*step] for i in range(Threshold)]
@@ -254,8 +255,14 @@ def includeTransaction(pid, N, t, setToInclude, broadcast, receive, send):
 
     greenletPacker(Greenlet(consensusBroadcast, pid, N, t, setToInclude, make_bc_br(pid), CBChannel.get, outputChannel, make_bc_send(pid)),
         'includeTransaction.consensusBroadcast', (pid, N, t, setToInclude, broadcast, receive)).start()
-    greenletPacker(Greenlet(callBackWrap(commonsubset, callbackFactoryACS()), pid, N, t, monitoredIntList, make_acs_br(pid), ACSChannel.get),
-        'includeTransaction.callBackWrap(commonsubset, callbackFactoryACS())', (pid, N, t, setToInclude, broadcast, receive)).start()
+    greenletPacker(
+        Greenlet(
+            callBackWrap(commonsubset, callbackFactoryACS()),
+            pid, N, t, monitoredIntList, make_acs_br(pid), ACSChannel.get
+        ),
+        'includeTransaction.callBackWrap(commonsubset, callbackFactoryACS())',
+        (pid, N, t, setToInclude, broadcast, receive)
+    ).start()
 
     commonSet = locker.get()
     return commonSet, TXSet
@@ -267,9 +274,11 @@ lock = Queue()
 finishcount = 0
 lock.put(1)
 
+
 @greenletFunction
-def honestParty(pid, N, t, controlChannel, broadcast, receive, send, B = -1):
-    # RequestChannel is called by the client and it is the client's duty to broadcast the tx it wants to include
+def honestParty(pid, N, t, controlChannel, broadcast, receive, send, B=-1):
+    # RequestChannel is called by the client and it is the client's
+    # duty to broadcast the tx it wants to include
     if B < 0:
         B = int(math.ceil(N * math.log(N)))
     transactionCache = []
@@ -277,12 +286,12 @@ def honestParty(pid, N, t, controlChannel, broadcast, receive, send, B = -1):
     proposals = []
     receivedProposals = False
     commonSet = []
-    locks = defaultdict(lambda : Queue(1))
-    doneCombination = defaultdict(lambda : False)
+    locks = defaultdict(lambda: Queue(1))
+    doneCombination = defaultdict(lambda: False)
     ENC_THRESHOLD = N - 2 * t
     global finishcount
     encPK, encSKs = getEncKeys()
-    encCounter = defaultdict(lambda : {})
+    encCounter = defaultdict(lambda: {})
     includeTransactionChannel = Queue()
 
     def probe(i):
@@ -322,14 +331,14 @@ def honestParty(pid, N, t, controlChannel, broadcast, receive, send, B = -1):
             mylog("timestampB (%d, %lf)" % (pid, time.time()), verboseLevel=-2)
             if len(transactionCache) < B:  # Let's wait for many transactions. : )
                 time.sleep(0.5)
-                print "Not enough transactions", len(transactionCache)
+                print("Not enough transactions", len(transactionCache))
                 continue
 
             oldest_B = transactionCache[:B]
-            selected_B = random.sample(oldest_B, min(B/N, len(oldest_B)))
-            print "[%d] proposing %d transactions" % (pid, min(B/N, len(oldest_B)))
+            selected_B = random.sample(oldest_B, min(B//N, len(oldest_B)))
+            print("[%d] proposing %d transactions" % (pid, min(B//N, len(oldest_B))))
             aesKey = random._urandom(32)  #
-            encrypted_B = encrypt(aesKey, ''.join(selected_B))
+            encrypted_B = encrypt(aesKey, hexlify(b''.join(selected_B)).decode())
             encryptedAESKey = encPK.encrypt(aesKey)
             proposal = serializeEnc(encryptedAESKey) + encrypted_B
             mylog("timestampIB (%d, %lf)" % (pid, time.time()), verboseLevel=-2)

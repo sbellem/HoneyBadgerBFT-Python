@@ -1,5 +1,6 @@
 from .boldyreva import dealer, serialize
 import argparse
+import base64
 import pickle
 
 
@@ -18,9 +19,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('players', help='The number of players')
     parser.add_argument('k', help='k')
+    parser.add_argument('output_file', help='File to write the keys')
     args = parser.parse_args()
     keys = _generate_keys(int(args.players), args.k)
-    print(pickle.dumps(keys))
+    print(base64.encodebytes(pickle.dumps(keys)).decode())
 
 
 if __name__ == '__main__':

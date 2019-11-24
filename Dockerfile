@@ -11,15 +11,18 @@ ENV B 16
 
 RUN apt-get update && apt-get -y install bison flex libgmp-dev libmpc-dev
 
+WORKDIR /tmp
 RUN wget https://crypto.stanford.edu/pbc/files/pbc-0.5.14.tar.gz
 RUN tar -xvf pbc-0.5.14.tar.gz
-RUN cd pbc-0.5.14 && ./configure && make && make install
+RUN cd pbc-0.5.14 && ./configure && make && make install && cd .. && rm -rf pbc-0.5.14
 
 ENV LIBRARY_PATH /usr/local/lib
 ENV LD_LIBRARY_PATH /usr/local/lib
 
+WORKDIR /tmp
 RUN git clone https://github.com/JHUISI/charm.git
-RUN cd charm && ./configure.sh && make install
+RUN cd charm && ./configure.sh && make install && cd .. && rm -rf charm
+
 
 ENV SRC /usr/local/src/HoneyBadgerBFT
 WORKDIR $SRC
